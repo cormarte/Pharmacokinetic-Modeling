@@ -1,6 +1,6 @@
 function [image, frames] = read4DDICOMFiles()
 
-dir = 'D:\Documents de Corentin\ULB\PhD\Data\Images\DICOM\CEREBRIX\PET PETCT_CTplusFET_LM_Brain (Adult)\dynamic recon 3x10min Volume (Corrected) - 7';
+dir = 'D:\Documents de Corentin\Images\DICOM\OsiriX Samples\CEREBRIX\PET PETCT_CTplusFET_LM_Brain (Adult)\dynamic recon 3x10min Volume (Corrected) - 7';
 [files, path, index] = uigetfile({'*.dcm','DICOM Files'; '*.*','All Files' },'DICOM Browser', 'MultiSelect', 'on', dir);
 
 info = dicominfo(fullfile(path, files{1}))
