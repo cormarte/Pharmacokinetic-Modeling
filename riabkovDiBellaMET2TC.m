@@ -53,11 +53,43 @@ dt = 10*ones(n);
 
 
 %-------------------------------------------------------------------------%
+%                                  Tests                                  %
+%-------------------------------------------------------------------------%
+
+dt = 0.01;
+t = 0:dt:120;
+
+%k = [0.0410, 0.1190, 0.0640, 0.0075];
+k = [0.1, 0.025, 0.05, 0.02];
+p = [851.1225, 21.8798, 20.8113, -4.1339, -0.1191, -0.0104];
+
+cp = bloodInput(p, t);
+ct = tissueResponse(k, p, alpha, t);
+ct2 = tissueResponse2(k, p, alpha, t, dt);
+cv = beta*ct + (1-beta)*cp;
+cv2 = beta*ct2 + (1-beta)*cp;
+
+figure;
+plot(t, cp, 'y');
+hold on;
+plot(t, ct, 'r');
+hold on;
+plot (t, ct2, 'b');
+hold on;
+plot (t, cv, 'g');
+hold on;
+plot(t, cv2, 'm');
+
+return;
+
+
+%-------------------------------------------------------------------------%
 %                           Blood input function                          %
 %-------------------------------------------------------------------------%
 
 % PTAC construction
 
+flag = 1;
 ptac = zeros(n, 1);
 
 for f=1:n
@@ -85,8 +117,6 @@ end
 
 % Blood input function model fit
 
-flag = 1;
-
 if flag == 1
 
     p0 = [851.1225, 21.8798, 20.8113, -4.1339, -0.1191, -0.0104];    
@@ -95,9 +125,10 @@ if flag == 1
 end
 
 
-%-------------------------------------------------------------------------
-%-------------------------------------------------------------------------
- 
+%-------------------------------------------------------------------------%
+%                                  Tests                                  %
+%-------------------------------------------------------------------------%
+
 time = 0:0.1:20;   
 
 figure;
@@ -105,13 +136,9 @@ scatter(t, ptac, 'r');
 hold on;
 plot(time, interp1(t, ptac, time, 'pchip'), 'b');
 hold on;
-plot(time, cp(p0, time), 'g');
+plot(time, bloodInput(p0, time), 'g');
 hold on; 
-plot(time, cp(p, time), 'y');
-
-
-%-------------------------------------------------------------------------
-%-------------------------------------------------------------------------
+plot(time, bloodInput(p, time), 'y');
 
 
 %-------------------------------------------------------------------------%
@@ -145,7 +172,7 @@ beq = [];
 %           0.0100, 0.0960;            % 2nd column: upper bounds for {k1, ..., k4}
 %           0.0028, 0.0098];
 
-kBounds = [0.0000, 1.0000;            % Why does k parameters belong tp [0, 1] ? 
+kBounds = [0.0000, 1.0000;            % Why does k parameters belong to [0, 1] ? 
            0.0000, 1.0000;            
            0.0000, 1.0000;            
            0.0000, 1.0000];
@@ -178,9 +205,9 @@ options = optimoptions('fmincon', ...                                     % Para
                        'TypicalX', k0);
                    
 
-%-------------------------------------------------------------------------%               
-%-------------------------------------------------------------------------%               
-
+%-------------------------------------------------------------------------%
+%                                  Tests                                  %
+%-------------------------------------------------------------------------%
 
 x = 151;
 y = 148;
@@ -215,9 +242,9 @@ figure, plot(time2, signal);
 return;   
 
 
-%-------------------------------------------------------------------------%               
-%-------------------------------------------------------------------------%               
-
+%-------------------------------------------------------------------------%
+%                             Voxel response                              %
+%-------------------------------------------------------------------------%
 
 % Coefficients computation
 
@@ -252,7 +279,7 @@ function cost = bloodCostFunction(p)
 global t;
 global ptac;
 
-cost = norm(cp(p, t)-ptac)^2;
+cost = norm(bloodInput(p, t)-ptac)^2; % Add weight ponderation => Feng, 1997
 
 return;
 
@@ -279,7 +306,7 @@ if flag == 1
                                                          
 else
     
-    cost = norm(vtac-(beta*ct(k, p, alpha, t) + (1-beta)*cp(p, t)))^2;
+    cost = norm(vtac-(beta*tissueResponse(k, p, alpha, t) + (1-beta)*bloodInput(p, t)))^2;
     
 end
     
@@ -292,9 +319,9 @@ function H = convolutionMatrix(k, alpha, t, dt)
 % Convolution matrix for parameters 'k', extracellular fraction 'alpha' and time vector 't' and time interval lenght vector 'dt'
 % Riabkov & Di Bella, 2002, equation (9) extended to 2TC model
 
-row = [dt*h(k, alpha, 0), zeros(1, lenght(t)-1)]; % dt is used to ensure that discrete convolutions equals continuous convolution (Riabkov & Di Bella, 2002 & 2004) => to be verified
+row = [dt*tissueImpulseResponse(k, alpha, 0), zeros(1, lenght(t)-1)]; % dt is used to ensure that discrete convolutions equals continuous convolution (Riabkov & Di Bella, 2002 & 2004) => to be verified
                                                   % Could be simply adapted to variable dt
-col = dt*h(k, alpha, t);
+col = dt*tissueImpulseResponse(k, alpha, t);
 
 H = toeplitz(col, row);
 
@@ -302,7 +329,7 @@ return;
 
 end
 
-function cp = cp(p, t)
+function cp = bloodInput(p, t)
   
 % Blood input function for parameters 'p' at time 't'
 % Feng, 1997, equation (1)
@@ -316,7 +343,7 @@ return;
 
 end
 
-function h = h(k, alpha, t)
+function h = tissueImpulseResponse(k, alpha, t)
 
 % 2TC tissue impulse response function for parameters 'k' and extracellular fraction 'alpha' at time 't'
 % Feng, 1997, equation (5) adapted to the intra/extracellular model
@@ -333,10 +360,11 @@ return;
 
 end
 
-function ct = ct(k, p, alpha, t)
+function ct = tissueResponse(k, p, alpha, t)
 
-% 2TC analytic tissue response to blood input function for tissue parameters 'k', blood input parameters 'p' and extracellular fraction 'alpha' at time 't'
+% 2TC analytic tissue response to blood input function for tissue parameters 'k', blood input parameters 'p' extracellular fraction 'alpha' and time vector 't'
 % Loeb, 2015, equation (15b) adapted to the intra/extracellular model
+% /!\ -lambda_i should be changed to lambda_i everywhere in Loeb, 2015 (except for equation (15) coming from Feng, 1997), because lambda is already a negative value according to (15)
 
 %      1  2  3     4       5       6
 % p    A1 A2 A3 lambda1 lambda2 lambda3 
@@ -356,18 +384,18 @@ b2 = k(1)/(l2-l1) * (alpha*(l2-k(4)) - (1-alpha)*k(3));
 b = [b1, b2];
 l = [l1, l2];
 
-c = [-a(2)-a(3)-(a(1)/(b(1)-lambda(1))), a(2), a(3);
-     -a(2)-a(3)-(a(1)/(b(2)-lambda(1))), a(2), a(3)];
+c = [-a(2)-a(3)-(a(1)/(b(1)+lambda(1))), a(2), a(3);
+     -a(2)-a(3)-(a(1)/(b(2)+lambda(1))), a(2), a(3)];
 
-ct = zeros(1, size(t));
+ct = zeros(1, length(t));
 
 for i=1:2
     
-    ct = ct + ((a(1)*t*b(i))/(l(i)-lambda(1)) .* exp(-lambda(1)*t));
+    ct = ct + ((a(1)*t*b(i))/(l(i)+lambda(1)) .* exp(lambda(1)*t));
     
     for j=1:3
         
-        ct = ct + (c(i, j)*b(i)/(l(i)-lambda(j)) * (exp(-lambda(j)*t)-exp(-l(i)*t)));
+        ct = ct + (c(i, j)*b(i)/(l(i)+lambda(j)) * (exp(lambda(j)*t)-exp(-l(i)*t)));
         
     end;
     
@@ -377,3 +405,44 @@ end;
 return;
 
 end
+
+function ct = tissueResponse2(k, p, alpha, t, dt)
+
+% 2TC finite difference tissue response to blood input function for tissue parameters 'k', blood input parameters 'p', extracellular fraction 'alpha' and time vector 't'
+
+iter = length(t)-1;
+
+factor = alpha/(1-alpha); % Correction factor taking into account volume differences between extra- & intracellular compartments
+
+cp = bloodInput(p, t);
+ce = zeros(1, iter);
+ci = zeros(1, iter);
+ct = zeros(1, iter);
+
+for i=1:iter
+    
+    ce(i+1) = max(dt*(k(1)*cp(i) - (k(2)+k(3))*ce(i) + k(4)*ci(i)) + ce(i), 0);
+    ci(i+1) = max(dt*(k(3)*factor*ce(i) - k(4)*factor*ci(i)) + ci(i), 0);
+    ct(i+1) = alpha*ce(i+1) + (1-alpha)*ci(i+1);
+    
+end
+
+return;
+
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
